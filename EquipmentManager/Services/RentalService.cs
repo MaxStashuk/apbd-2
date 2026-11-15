@@ -24,10 +24,15 @@ public class RentalService : IRentalService
 
     public User RegisterUser(string firstName, string lastName, UserType userType)
     {
-        var user = new User($"USR-{_userSeq++:D3}", firstName, lastName, userType);
+        if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
+            throw new RentalDomainException("First name and last name cannot be empty.");
+
+        var user = new User($"USR-{_userSeq++:D3}", firstName.Trim(), lastName.Trim(), userType);
         _users.Add(user);
         return user;
     }
+
+    public IReadOnlyList<User> GetAllUsers() => _users.AsReadOnly();
 
     public Laptop AddLaptop(string name, string serialNumber, int ramGb, string processor)
     {
@@ -50,6 +55,16 @@ public class RentalService : IRentalService
         return camera;
     }
 
+    public void RemoveEquipment(string equipmentId)
+    {
+        var item = GetEquipmentById(equipmentId);
+        if (item.Status == EquipmentStatus.Rented)
+        {
+            throw new RentalDomainException($"Cannot remove '{item.Name}' ({item.Id}) because it is currently rented.");
+        }
+        _equipment.Remove(item);
+    }
+
     public IReadOnlyList<Equipment> GetAllEquipment() => _equipment.AsReadOnly();
 
     public IReadOnlyList<Equipment> GetAvailableEquipment() =>
@@ -67,6 +82,9 @@ public class RentalService : IRentalService
 
     public Rental RentEquipment(string userId, string equipmentId, DateTime rentalDate, int durationDays)
     {
+        if (durationDays <= 0)
+            throw new RentalDomainException("Rental duration must be at least 1 day.");
+
         var user = GetUserById(userId);
         var item = GetEquipmentById(equipmentId);
 
@@ -113,6 +131,8 @@ public class RentalService : IRentalService
         return rental;
     }
 
+    public IReadOnlyList<Rental> GetAllRentals() => _rentals.AsReadOnly();
+
     public IReadOnlyList<Rental> GetActiveRentalsForUser(string userId)
     {
         GetUserById(userId);
@@ -137,10 +157,10 @@ public class RentalService : IRentalService
     }
 
     private User GetUserById(string userId) =>
-        _users.FirstOrDefault(u => u.Id == userId)
+        _users.FirstOrDefault(u => u.Id.Equals(userId.Trim(), StringComparison.OrdinalIgnoreCase))
         ?? throw new RentalDomainException($"User with ID '{userId}' was not found.");
 
     private Equipment GetEquipmentById(string equipmentId) =>
-        _equipment.FirstOrDefault(e => e.Id == equipmentId)
+        _equipment.FirstOrDefault(e => e.Id.Equals(equipmentId.Trim(), StringComparison.OrdinalIgnoreCase))
         ?? throw new RentalDomainException($"Equipment with ID '{equipmentId}' was not found.");
 }
